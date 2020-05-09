@@ -1,0 +1,83 @@
+server:
+  port: 8090
+spring:
+  profiles:
+    active: sc-gateway-route
+---
+spring:
+  cloud:
+    gateway:
+      routes:
+      - id: after_route
+        uri: http://httpbin.org:80/get
+        predicates:
+        - After=2020-01-20T17:42:47.789-07:00[America/Denver] #请求 http://localhost:8090/ 当请求的时间在这个配置的时间之后，请求会被路由到http://httpbin.org:80/get。
+  profiles: after_route
+
+---
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: header_route
+          uri: http://httpbin.org:80/get
+          predicates:
+            - Header=X-Request-Id, \d+   #当请求的Header中有X-Request-Id的header名，且header值为数字时，请求会被路由到配置的 uri
+                                         # $ curl -H 'X-Request-Id:1' localhost:8090
+  profiles: header_route
+
+---
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: cookie_route
+          uri: http://httpbin.org:80/get
+          predicates:
+            - Cookie=name, wanjun   #请求带有cookie名为 name, cookie值为forezp 的请求将都会转发到uri为 http://httpbin.org:80/get的地址上。
+                                    #使用curl命令进行请求，在请求中带上 cookie，会返回正确的结果，否则，请求报404错误
+                                    #$ curl -H 'Cookie:name=wanjun' localhost:8090
+  profiles: cookie_route
+
+---
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: host_route
+          uri: http://httpbin.org:80/get
+          predicates:
+            - Host=**.wanjun.com   #请求头中含有Host为fangzhipeng.com的请求将会被路由转发转发到配置的uri。 启动工程，执行以下的curl命令，请求会返回正确的请求结果：
+                                        #curl -H 'Host:www.wanjun.com' localhost:8090
+  profiles: host_route
+
+
+
+#spring.cloud.gateway.discovery.locator.enabled为true，
+#  表明gateway开启服务注册和发现的功能，并且spring cloud gateway自动根据服务发现为每一个服务创建了一个router，
+#  这个router将以服务名开头的请求路径转发到对应的服务。
+#  spring.cloud.gateway.discovery.locator.lowerCaseServiceId是将请求路径上的服务名配置为小写（
+#  因为服务注册的时候，向注册中心注册时将服务名转成大写的了），比如以/service-hi/*的请求路径被路由转发到服务名为service-hi的服务上
+---
+spring:
+  application:
+    name: sc-gateway-service
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+          lowerCaseServiceId: true
+      routes:
+        - id: fp-core
+          uri: lb://FP-CORE
+          predicates:
+            - Path=/user/**
+          filters:
+            - StripPrefix=1
+  profiles: sc-gateway-route
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
